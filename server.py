@@ -1,4 +1,6 @@
+# imports
 import socket
+#-----------------------------------
 
 
 class Server(object):
@@ -44,7 +46,10 @@ class Server(object):
     """
 
     game_name = "Realms of Venture"
-
+    # --------------------------------------------------
+    
+    # creates instances of variables that methods of 
+    # the class will be sharing
     def __init__(self, port=50000):
         self.input_buffer = ""
         self.output_buffer = ""
@@ -54,7 +59,9 @@ class Server(object):
         self.port = port
 
         self.room = 0
+    # --------------------------------------------------
 
+    # wait for the client to connect
     def connect(self):
         self.socket = socket.socket(
             socket.AF_INET,
@@ -66,7 +73,12 @@ class Server(object):
         self.socket.listen(1)
 
         self.client_connection, address = self.socket.accept()
-
+    # --------------------------------------------------
+        
+    # It returns the description of the room indicated by the number
+    # given in the argument. So if we call room description with the number 1,
+    # then it would return "this room has green wallpaper,"
+    # or whatever you decide the description of room 1 should be.
     def room_description(self, room_number):
         """
         For any room_number in 0, 1, 2, 3, return a string that "describes" that
@@ -79,10 +91,17 @@ class Server(object):
         :return: str
         """
 
-        # TODO: YOUR CODE HERE
+        return [
+            "You are in the room with the white wallpaper.",
+            "You are in the room with the green wallpaper.",
+            "You are in the room with the brown wallpaper.",
+            "You are in the room with the mauve wallpaper.",
+        ][room_number]
 
-        pass
-
+    # --------------------------------------------------
+    
+    # Writes to the output buffer. And it says, "welcome to selfdot game name."
+    # It fills in the game name and the original--the initial room description.
     def greet(self):
         """
         Welcome a client to the game.
@@ -96,7 +115,8 @@ class Server(object):
             self.game_name,
             self.room_description(self.room)
         )
-
+    # --------------------------------------------------
+    
     def get_input(self):
         """
         Retrieve input from the client_connection. All messages from the client
@@ -108,9 +128,12 @@ class Server(object):
         :return: None 
         """
 
-        # TODO: YOUR CODE HERE
+        received = b''
+        while b'\n' not in received:
+            received += self.client_connection.recv(16)
 
-        pass
+        self.input_buffer = received.decode().strip()
+    # --------------------------------------------------
 
     def move(self, argument):
         """
@@ -133,10 +156,31 @@ class Server(object):
         :return: None
         """
 
-        # TODO: YOUR CODE HERE
+        if self.room == 0 and argument == "north":
+            self.room = 3
 
-        pass
+        if self.room == 0 and argument == "west":
+            self.room = 1
 
+        if self.room == 0 and argument == "east":
+            self.room = 2
+
+        if self.room == 1 and argument == "east":
+            self.room = 0
+
+        if self.room == 2 and argument == "west":
+            self.room = 0
+
+        if self.room == 3 and argument == "south":
+            self.room = 0
+
+        self.output_buffer = self.room_description(self.room)
+    # --------------------------------------------------
+
+    # Lets the player speak. It gets an argument.
+    # It could get the argument "is there anybody here?"
+    # And in that case, it would put, you say, "is there anybody here"
+    # into the output buffer.
     def say(self, argument):
         """
         Lets the client speak by putting their utterance into the output buffer.
@@ -150,10 +194,8 @@ class Server(object):
         :param argument: str
         :return: None
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        self.output_buffer = 'You say, "{}"'.format(argument)
+    # --------------------------------------------------
 
     def quit(self, argument):
         """
@@ -167,10 +209,13 @@ class Server(object):
         :return: None
         """
 
-        # TODO: YOUR CODE HERE
+        self.done = True
+        self.output_buffer = "Goodbye!"
+    # --------------------------------------------------
 
-        pass
-
+    # Responsible for taking what the client types in and finding out which 
+    # method to call, whether it should call quit or whether it should call say
+    # or whether it should call move.
     def route(self):
         """
         Examines `self.input_buffer` to perform the correct action (move, quit, or
@@ -183,10 +228,32 @@ class Server(object):
         :return: None
         """
 
-        # TODO: YOUR CODE HERE
+        received = self.input_buffer.split(" ")
 
-        pass
+        command = received.pop(0)
+        arguments = " ".join(received)
 
+        # If `self.input_buffer` was "say Is anybody here?", then:
+        # `command` should now be "say" and `arguments` should now be 
+        # "Is anybody here?".
+        #
+        # If `self.input_buffer` was "move north", then:
+        # `command` should now be "move" and `arguments` should now be "north".
+        try:
+            {
+                'quit': self.quit,
+                'move': self.move,
+                'say': self.say,
+            }[command](arguments)
+        except KeyError as err:
+            print("incorect input:", err)
+            print("enter: move - north, south, east, say 'something', or quit")
+    # --------------------------------------------------
+    
+    # Push output is the method that looks at the output buffer
+    # and sends its clients-- its contents to the client.
+    # And this says, "you should prepend OK and append a newline
+    # before sending that output."
     def push_output(self):
         """
         Sends the contents of the output buffer to the client.
@@ -197,10 +264,22 @@ class Server(object):
         :return: None 
         """
 
-        # TODO: YOUR CODE HERE
-
-        pass
-
+        self.client_connection.sendall(b"OK! " + \
+                                       self.output_buffer.encode() + b"\n")
+    # --------------------------------------------------
+    
+    # Serve has our main server loop. So some other piece of code--
+    # we saw it in serve.py-- is going to instantiate a server class 
+    # and call that instance's serve method.
+    # And the server loop is going to connect to a client.
+    # It's going to greet the client.
+    # And it's going to push that greeting to the client because greet
+    # only puts output onto the output buffer.
+    # Push output actually sends that to the client.
+    # And then it goes into a loop, getting the input,
+    # figuring out what to do with the input, and pushing any output to the client.
+    # Once self dot done is true, it will close the client connection
+    # and close the socket, ending the game for the player.
     def serve(self):
         self.connect()
         self.greet()
